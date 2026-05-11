@@ -8,66 +8,42 @@ import com.microservices.auth.application.mapper.UserMapper;
 import com.microservices.auth.domain.exception.DomainException;
 import com.microservices.auth.domain.model.User;
 import com.microservices.auth.domain.service.UserDomainService;
+import com.microservices.auth.infrastructure.security.JwtTokenProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * APPLICATION SERVICE: AuthApplicationService
  * 
- * WHAT: Orchestrates authentication use cases
- * WHY: 
- * - Coordinates domain services
- * - Converts DTOs ↔ Domain objects
- * - Handles application-level concerns (logging)
- * - Provides clean API for presentation layer
- * 
- * USE CASES:
- * 1. User Registration
- * 2. User Login
- * 3. Get User Profile
- * 
- * WHY THIS IS NOT IN DOMAIN:
- * - Uses DTOs (application concern)
- * - Includes logging (infrastructure concern)
- * - Orchestrates multiple steps (workflow logic)
+ * Orchestrates authentication use cases
  */
 public class AuthApplicationService {
     
     private static final Logger log = LoggerFactory.getLogger(AuthApplicationService.class);
     
     private final UserDomainService userDomainService;
+    private final JwtTokenProvider jwtTokenProvider;
     
-    // Constructor injection - dependencies are explicit
-    public AuthApplicationService(UserDomainService userDomainService) {
+    // Constructor injection - now includes JwtTokenProvider
+    public AuthApplicationService(UserDomainService userDomainService, 
+                                   JwtTokenProvider jwtTokenProvider) {
         this.userDomainService = userDomainService;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
     
     /**
-     * USE CASE: Register a new user
-     * 
-     * WORKFLOW:
-     * 1. Extract data from DTO
-     * 2. Call domain service (business logic)
-     * 3. Map result to response DTO
-     * 4. Return to presentation layer
-     * 
-     * WHY NOT IN CONTROLLER:
-     * - Controller should be thin (just HTTP handling)
-     * - Application logic should be testable without HTTP
-     * - Can be reused by multiple controllers (REST, GraphQL, etc.)
+     * Register a new user
      */
     public AuthResponse register(RegisterRequest request) {
         log.info("Processing registration request for email: {}", request.getEmail());
         
         try {
-            // Delegate to domain service - it handles all business rules
             User user = userDomainService.register(
                 request.getEmail(),
                 request.getUsername(),
                 request.getPassword()
             );
             
-            // Convert domain object to response DTO
             AuthResponse response = AuthResponse.forRegistration(
                 user.getId().getValue().toString(),
                 user.getUsername().getValue(),
@@ -78,19 +54,13 @@ public class AuthApplicationService {
             return response;
             
         } catch (DomainException e) {
-            // Log and rethrow - let presentation layer handle HTTP status
             log.error("Registration failed: {}", e.getMessage());
             throw e;
         }
     }
     
     /**
-     * USE CASE: Login user
-     * 
-     * WORKFLOW:
-     * 1. Validate credentials via domain service
-     * 2. Generate JWT token (will be added)
-     * 3. Return token + user info
+     * Login user - NOW GENERATES REAL JWT TOKEN
      */
     public AuthResponse login(LoginRequest request) {
         log.info("Processing login request for email: {}", request.getEmail());
@@ -102,10 +72,13 @@ public class AuthApplicationService {
                 request.getPassword()
             );
             
-            // TODO: Generate JWT token (will be added in infrastructure layer)
-            String token = "JWT_TOKEN_PLACEHOLDER";
+            // Generate REAL JWT token
+            String token = jwtTokenProvider.generateToken(
+                user.getId().getValue().toString(),
+                user.getEmail().getValue()
+            );
             
-            // Build response
+            // Build response with token
             AuthResponse response = AuthResponse.forLogin(
                 token,
                 user.getId().getValue().toString(),
@@ -123,7 +96,7 @@ public class AuthApplicationService {
     }
     
     /**
-     * USE CASE: Get user profile by ID
+     * Get user by ID
      */
     public UserResponse getUserById(String userId) {
         log.info("Fetching user profile: {}", userId);

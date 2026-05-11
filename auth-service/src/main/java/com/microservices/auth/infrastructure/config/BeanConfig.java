@@ -4,31 +4,20 @@ import com.microservices.auth.domain.event.EventPublisher;
 import com.microservices.auth.domain.repository.UserRepository;
 import com.microservices.auth.domain.service.UserDomainService;
 import com.microservices.auth.application.service.AuthApplicationService;
+import com.microservices.auth.infrastructure.security.JwtTokenProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * BEAN CONFIGURATION
  * 
- * WHAT: Creates Spring beans manually
- * WHY: 
- * - Domain services shouldn't have @Service (keeps them pure)
- * - Manual wiring makes dependencies explicit
- * - Easy to swap implementations for testing
- * 
- * WITH THIS CONFIG:
- * - Domain stays pure (no Spring annotations)
- * - Application services are wired explicitly
- * - Dependencies are clear and testable
+ * Manually creates Spring beans to keep domain layer pure
  */
 @Configuration
 public class BeanConfig {
     
     /**
      * Create UserDomainService bean
-     * 
-     * Spring calls this method and manages the bean lifecycle
-     * UserDomainService needs: UserRepository + EventPublisher
      */
     @Bean
     public UserDomainService userDomainService(
@@ -39,12 +28,12 @@ public class BeanConfig {
     
     /**
      * Create AuthApplicationService bean
-     * 
-     * This is the main service used by controllers
+     * Now includes JwtTokenProvider for real token generation
      */
     @Bean
     public AuthApplicationService authApplicationService(
-            UserDomainService userDomainService) {
-        return new AuthApplicationService(userDomainService);
+            UserDomainService userDomainService,
+            JwtTokenProvider jwtTokenProvider) {
+        return new AuthApplicationService(userDomainService, jwtTokenProvider);
     }
 }

@@ -12,11 +12,6 @@ import com.microservices.auth.infrastructure.security.JwtTokenProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * APPLICATION SERVICE: AuthApplicationService
- * 
- * Orchestrates authentication use cases
- */
 public class AuthApplicationService {
     
     private static final Logger log = LoggerFactory.getLogger(AuthApplicationService.class);
@@ -24,7 +19,6 @@ public class AuthApplicationService {
     private final UserDomainService userDomainService;
     private final JwtTokenProvider jwtTokenProvider;
     
-    // Constructor injection - now includes JwtTokenProvider
     public AuthApplicationService(UserDomainService userDomainService, 
                                    JwtTokenProvider jwtTokenProvider) {
         this.userDomainService = userDomainService;
@@ -32,23 +26,33 @@ public class AuthApplicationService {
     }
     
     /**
-     * Register a new user
+     * Register a new user - NOW RETURNS TOKEN!
+     * Auto-login after registration
      */
     public AuthResponse register(RegisterRequest request) {
         log.info("Processing registration request for email: {}", request.getEmail());
         
         try {
+            // Create user in domain
             User user = userDomainService.register(
                 request.getEmail(),
                 request.getUsername(),
                 request.getPassword()
             );
             
-            AuthResponse response = AuthResponse.forRegistration(
+            // Generate JWT token immediately (auto-login)
+            String token = jwtTokenProvider.generateToken(
                 user.getId().getValue().toString(),
-                user.getUsername().getValue(),
                 user.getEmail().getValue()
             );
+            
+            // Build response WITH token
+            AuthResponse response = new AuthResponse();
+            response.setToken(token);  // ← NOW HAS TOKEN!
+            response.setUserId(user.getId().getValue().toString());
+            response.setUsername(user.getUsername().getValue());
+            response.setEmail(user.getEmail().getValue());
+            response.setMessage("User registered and logged in successfully");
             
             log.info("User registered successfully: {}", user.getId());
             return response;
@@ -60,25 +64,22 @@ public class AuthApplicationService {
     }
     
     /**
-     * Login user - NOW GENERATES REAL JWT TOKEN
+     * Login user
      */
     public AuthResponse login(LoginRequest request) {
         log.info("Processing login request for email: {}", request.getEmail());
         
         try {
-            // Authenticate via domain service
             User user = userDomainService.login(
                 request.getEmail(),
                 request.getPassword()
             );
             
-            // Generate REAL JWT token
             String token = jwtTokenProvider.generateToken(
                 user.getId().getValue().toString(),
                 user.getEmail().getValue()
             );
             
-            // Build response with token
             AuthResponse response = AuthResponse.forLogin(
                 token,
                 user.getId().getValue().toString(),
